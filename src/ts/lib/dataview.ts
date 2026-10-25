@@ -1346,6 +1346,266 @@ class Dataview {
 		};
 	};
 
+	/**
+	 * Splits text copied from a spreadsheet into rows of cells. Cells are separated by tabs,
+	 * and a cell with tabs, line breaks or quotes is quoted, as Excel and Google Sheets copy them.
+	 * @param {string} text - The copied text.
+	 * @returns {string[][]} The non-empty rows.
+	 */
+	pasteParse (text: string): string[][] {
+		const rows: string[][] = [];
+
+		let row: string[] = [];
+		let cell = '';
+		let quoted = false;
+
+		text = String(text || '').replace(/\r\n?/g, '\n');
+
+		for (let i = 0; i < text.length; i++) {
+			const c = text[i];
+
+			if (quoted) {
+				if (c != '"') {
+					cell += c;
+				} else
+				if (text[i + 1] == '"') {
+					cell += '"';
+					i++;
+				} else {
+					quoted = false;
+				};
+				continue;
+			};
+
+			if ((c == '"') && !cell.length) {
+				quoted = true;
+				continue;
+			};
+
+			if ((c == '\t') || (c == '\n')) {
+				row.push(cell.trim());
+				cell = '';
+
+				if (c == '\n') {
+					rows.push(row);
+					row = [];
+				};
+				continue;
+			};
+
+			cell += c;
+		};
+
+		if (cell.length || row.length) {
+			row.push(cell.trim());
+			rows.push(row);
+		};
+
+		return rows.filter(it => it.some(c => c.length));
+	};
+
+	/**
+	 * Matches the header row of pasted rows to properties. The Name column fills the object name, and the
+	 * Código (or Code, ID) column is the key that finds objects to update instead of creating them.
+	 * @param {string[]} header - The first pasted row.
+	 * @returns {any} The property of each column (null when unknown), the key column index and the unknown names.
+	 */
+	pastePlan (header: string[]): { relations: any[]; keyIndex: number; unknown: string[] } {
+		const normalize = (v: string) => String(v || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+		const relations = S.Record.getRelations();
+		const nameKeys = [ 'nombre', 'name', normalize(S.Record.getRelationByKey('name')?.name) ];
+		const keyNames = [ 'codigo', 'code', 'id' ];
+		const unknown: string[] = [];
+		const skip = [ I.RelationType.Object, I.RelationType.File, I.RelationType.Formula, I.RelationType.Relations ];
+
+		let keyIndex = -1;
+
+		const columns = header.map((name, i) => {
+			const n = normalize(name);
+
+			let relation = null;
+			if (nameKeys.includes(n)) {
+				relation = S.Record.getRelationByKey('name');
+			} else {
+				relation = relations.find(it => !it.isReadonlyValue && !skip.includes(it.relationFormat) && (normalize(it.name) == n));
+			};
+
+			if (keyNames.includes(n) && relation && (keyIndex < 0)) {
+				keyIndex = i;
+			};
+
+			if (!relation) {
+				unknown.push(name);
+			};
+			return relation;
+		});
+
+		return { relations: columns, keyIndex, unknown };
+	};
+
+	/**
+	 * Converts a pasted cell to the value of a property. Option names are kept as names and resolved on import.
+	 * @param {any} relation - The property.
+	 * @param {string} text - The cell.
+	 * @returns {any} The value, or null when the cell is empty or does not fit the property.
+	 */
+	pasteValue (relation: any, text: string): any {
+		text = String(text || '').trim();
+		if (!text) {
+			return null;
+		};
+
+		switch (relation.format) {
+			case I.RelationType.Number: {
+				let v = text.replace(/\s/g, '');
+
+				// 1.234,5 is a decimal comma with thousands dots, 1,234.5 the other way round
+				if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(v) || /^-?\d+,\d+$/.test(v)) {
+					v = v.replace(/\./g, '').replace(',', '.');
+				} else {
+					v = v.replace(/,/g, '');
+				};
+
+				const n = Number(v);
+				return isNaN(n) ? null : n;
+			};
+
+			case I.RelationType.Checkbox: {
+				return /^(1|x|si|sí|yes|true|verdadero|✓|✔)$/i.test(text);
+			};
+
+			case I.RelationType.Date: {
+				let m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+				if (m) {
+					return U.Date.timestamp(Number(m[1]), Number(m[2]), Number(m[3]));
+				};
+
+				m = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+				if (m) {
+					const y = Number(m[3]);
+					return U.Date.timestamp((y < 100) ? (2000 + y) : y, Number(m[2]), Number(m[1]));
+				};
+				return null;
+			};
+
+			case I.RelationType.Select: {
+				return [ text ];
+			};
+
+			case I.RelationType.MultiSelect: {
+				return text.split(/[,;]/).map(it => it.trim()).filter(it => it);
+			};
+
+			default: {
+				return text;
+			};
+		};
+	};
+
+	/**
+	 * Imports pasted rows into a dataview: rows whose key matches an object of the type update it, the rest
+	 * create objects with the view defaults (for example the project the view is filtered by).
+	 * Empty cells leave the value as it is.
+	 * @param {string[][]} rows - The pasted rows, the first one with property names.
+	 * @param {any} param - typeId, templateId, the details of new objects, and the collection to add them to.
+	 * @param {function} callBack - Gets the number of updated and created objects.
+	 */
+	async pasteImport (rows: string[][], param: { typeId: string; templateId?: string; details?: any; collectionId?: string }, callBack?: (updated: number, created: number) => void) {
+		const [ header, ...data ] = rows;
+		const { relations, keyIndex } = this.pastePlan(header || []);
+		const type = S.Record.getTypeById(param.typeId);
+		const space = S.Common.space;
+		const call = (fn: any, ...args: any[]): Promise<any> => new Promise(resolve => fn(...args, resolve));
+
+		if (!type || !data.length) {
+			callBack?.(0, 0);
+			return;
+		};
+
+		// option names to ids, creating the missing options
+		const optionIds = async (relation: any, names: string[]) => {
+			const message = await call(C.ObjectSearch, space, [
+				{ relationKey: 'relationKey', condition: I.FilterCondition.Equal, value: relation.relationKey },
+				{ relationKey: 'resolvedLayout', condition: I.FilterCondition.Equal, value: I.ObjectLayout.Option },
+			], [], [ 'id', 'name' ], '', 0, 0);
+			const options = message.records || [];
+			const ids: string[] = [];
+
+			for (const name of names) {
+				let option = options.find(it => String(it.name).toLowerCase() == name.toLowerCase());
+				if (!option) {
+					const created = await call(C.ObjectCreateRelationOption, { relationKey: relation.relationKey, name, relationOptionColor: '' }, space);
+					option = created.details;
+					options.push(option);
+				};
+				if (option?.id) {
+					ids.push(option.id);
+				};
+			};
+			return ids;
+		};
+
+		const existing: Map<string, string> = new Map();
+		if (keyIndex >= 0) {
+			const keyRelation = relations[keyIndex];
+			const codes = data.map(it => it[keyIndex]).filter(it => it);
+			const message = await call(C.ObjectSearch, space, [
+				{ relationKey: 'type', condition: I.FilterCondition.Equal, value: type.id },
+				{ relationKey: keyRelation.relationKey, condition: I.FilterCondition.In, value: codes },
+			], [], [ 'id', keyRelation.relationKey ], '', 0, 0);
+
+			for (const record of (message.records || [])) {
+				existing.set(String(record[keyRelation.relationKey]), record.id);
+			};
+		};
+
+		let updated = 0;
+		const createdIds: string[] = [];
+
+		for (const row of data) {
+			const details: any = {};
+
+			for (let i = 0; i < relations.length; i++) {
+				const relation = relations[i];
+				if (!relation) {
+					continue;
+				};
+
+				let value = this.pasteValue(relation, row[i]);
+				if ((value === null) || (value === undefined)) {
+					continue;
+				};
+
+				if ([ I.RelationType.Select, I.RelationType.MultiSelect ].includes(relation.format)) {
+					value = await optionIds(relation, value);
+				};
+				details[relation.relationKey] = value;
+			};
+
+			const id = (keyIndex >= 0) ? existing.get(row[keyIndex]) : '';
+			if (id) {
+				await call(C.ObjectListSetDetails, [ id ], Object.keys(details).map(key => ({ key, value: details[key] })));
+				updated++;
+				continue;
+			};
+
+			const message = await call(C.ObjectCreate, { ...(param.details || {}), ...details }, [], param.templateId || '', type.uniqueKey, space);
+			if (message.objectId) {
+				createdIds.push(message.objectId);
+
+				if (keyIndex >= 0) {
+					existing.set(row[keyIndex], message.objectId);
+				};
+			};
+		};
+
+		if (param.collectionId && createdIds.length) {
+			Action.addToCollection(param.collectionId, createdIds);
+		};
+
+		callBack?.(updated, createdIds.length);
+	};
+
 };
 
 export default new Dataview();

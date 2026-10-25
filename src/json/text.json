@@ -2444,6 +2444,15 @@
 	"menuDataviewTemplateEdit": "Edit template",
 
 	"menuDataviewNewExistingObject": "Existing object",
+	"menuDataviewNewPaste": "Paste rows",
+	"menuDataviewPasteTitle": "Paste rows copied from a spreadsheet, with property names in the first row",
+	"menuDataviewPastePlaceholder": "Código\tName\tHours\nT-01\tDesign\t4",
+	"menuDataviewPasteRows": "%s rows · columns: %s",
+	"menuDataviewPasteKey": "Rows with an existing %s are updated, the rest are created",
+	"menuDataviewPasteNoKey": "No Código column: every row creates a new object",
+	"menuDataviewPasteUnknown": "Ignored columns: %s",
+	"menuDataviewPasteImport": "Import",
+	"menuDataviewPasteResult": "%s updated, %s created",
 	"menuDataviewNewTemplate": "Template for this View",
 	"menuDataviewNewType": "Default Type for this View",
 
