@@ -275,7 +275,7 @@ const SidebarSectionTypeRelation = forwardRef<I.SidebarSectionRef, I.SidebarSect
 				{!item.isEmpty ? (
 					<>
 						{canDrag ? <Icon name="common/dnd" /> : ''}
-						<Icon name={Relation.registryName(item.relationKey, item.format)} />
+						<Icon name={Relation.iconName(item)} />
 					</>
 				) : ''}
 				<ObjectName object={item} />

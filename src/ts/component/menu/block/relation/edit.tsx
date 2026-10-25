@@ -2,6 +2,7 @@ import React, { forwardRef, useRef, useState, useEffect } from 'react';
 import { observable } from 'mobx';
 import { Input, MenuItemVertical, Button, Icon } from 'Component';
 import * as I from 'Interface';
+import RelationFormula from '../../dataview/relation/formula';
 
 const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 
@@ -12,6 +13,7 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 		onChange, route, saveCommand,
 	} = data;
 	const filterRef = useRef(null);
+	const formulaRef = useRef(null);
 	const buttonRef = useRef(null);
 	const keyHandlerRef = useRef<(e: any) => void>(() => {});
 	const [ format, setFormat ] = useState<I.RelationType>(null);
@@ -22,7 +24,7 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 		const relation = getRelation();
 
 		if (relation) {
-			setFormat(relation.format);
+			setFormat(relation.isFormula ? I.RelationType.Formula : relation.format);
 			setObjectTypes(Relation.getArrayValue(relation.objectTypes));
 			setIncludeTime(relation.includeTime);
 		};
@@ -72,7 +74,9 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 
 	const checkButton = () => {
 		const name = String(filterRef.current?.getValue() || '');
-		const canSave = name.length && (format !== null) && !isReadonlyHandler();
+		const isFormula = (format == I.RelationType.Formula);
+		const formula = String(formulaRef.current?.getValue() || '');
+		const canSave = name.length && (format !== null) && (!isFormula || formula.length) && !isReadonlyHandler();
 
 		buttonRef.current?.setColor(canSave ? 'accent' : 'blank');
 	};
@@ -205,12 +209,18 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			return;
 		};
 
-		add({ 
+		const item: any = { 
 			name: relation?.name, 
-			relationFormat: relation.format,
+			relationFormat: relation.relationFormat,
 			relationFormatObjectTypes: Relation.isObject(relation.format) ? Relation.getArrayValue(relation.objectTypes) : [],
 			relationFormatIncludeTime: includeTime,
-		});
+		};
+
+		if (relation.isFormula) {
+			item.relationFormula = relation.relationFormula;
+		};
+
+		add(item);
 
 		close();
 		analytics.event('DuplicateRelation');
@@ -257,6 +267,10 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			relationFormat: format,
 			relationFormatObjectTypes: Relation.isObject(format) ? Relation.getArrayValue(objectTypes) : [],
 			relationFormatIncludeTime: time !== undefined ? time : includeTime,
+		};
+
+		if (format == I.RelationType.Formula) {
+			item.relationFormula = formulaRef.current?.getStorageValue() || '';
 		};
 
 		if (name) {
@@ -331,6 +345,7 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 	const isType = U.Object.isTypeLayout(object.layout);
 	const isName = relation && (relation.relationKey == 'name');
 	const isDescription = relation && (relation.relationKey == 'description');
+	const isFormula = (format == I.RelationType.Formula);
 	const isDate = Relation.isDate(format);
 	const isObject = Relation.isObject(format);
 
@@ -399,6 +414,18 @@ const MenuBlockRelationEdit = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 					{...typeProps}
 				/>
 			</div>
+		);
+	};
+
+	if (isFormula) {
+		opts = (
+			<RelationFormula
+				ref={formulaRef}
+				relation={relation}
+				readonly={isReadonly}
+				onChange={checkButton}
+				onMouseEnter={menuClose}
+			/>
 		);
 	};
 

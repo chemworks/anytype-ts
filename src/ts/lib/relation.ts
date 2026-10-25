@@ -21,6 +21,51 @@ class Relation {
 	};
 
 	/**
+	 * Returns the icon name for a relation. Formulas keep their own icon whatever the format of their value.
+	 * @param {any} relation - The relation.
+	 * @returns {string} The icon name.
+	 */
+	public iconName (relation: any): string {
+		if (relation?.isFormula) {
+			return this.registryName('', I.RelationType.Formula);
+		};
+		return this.registryName(relation?.relationKey, relation?.format);
+	};
+
+	/**
+	 * Rewrites the relation keys of a stored formula to the current property names.
+	 * Keys that no longer exist are kept, so the user sees what is broken.
+	 * @param {string} text - The formula as stored.
+	 * @returns {string} The formula as shown.
+	 */
+	public formulaToDisplay (text: string): string {
+		return this.formulaRewrite(text, (key: string) => S.Record.getRelationByKey(key)?.name || key);
+	};
+
+	/**
+	 * Rewrites property names of a formula to relation keys, which is how formulas are stored.
+	 * Names that match no property are kept, and the middleware reports them.
+	 * @param {string} text - The formula as typed.
+	 * @returns {string} The formula to store.
+	 */
+	public formulaToStorage (text: string): string {
+		const relations = S.Record.getRelations();
+
+		return this.formulaRewrite(text, (name: string) => {
+			const relation = relations.find(it => it.name == name) || relations.find(it => it.relationKey == name);
+			return relation ? relation.relationKey : name;
+		});
+	};
+
+	private formulaRewrite (text: string, map: (name: string) => string): string {
+		const quote = (v: string) => JSON.stringify(map(v));
+
+		return String(text || '').
+			replace(/rel\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)/g, (m: string, rel: string, key: string) => `rel(${quote(rel)}, ${quote(key)})`).
+			replace(/prop\(\s*"([^"]*)"\s*\)/g, (m: string, key: string) => `prop(${quote(key)})`);
+	};
+
+	/**
 	 * Returns the CSS class name for a relation type.
 	 * @param {I.RelationType} v - The relation type.
 	 * @returns {string} The class name.

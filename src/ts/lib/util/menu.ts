@@ -509,6 +509,7 @@ class UtilMenu {
 			{ id: I.RelationType.Url },
 			{ id: I.RelationType.Email },
 			{ id: I.RelationType.Phone },
+			{ id: I.RelationType.Formula },
 		].map((it: any) => {
 			it.name = translate(`relationName${it.id}`);
 			it.iconParam = { name: Relation.registryName('', it.id) };

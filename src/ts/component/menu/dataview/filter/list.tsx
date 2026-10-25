@@ -411,7 +411,7 @@ const MenuFilterList = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 							</>
 						) : (
 							<>
-								<Icon name={Relation.registryName(item.relation.relationKey, item.relation.format)} />
+								<Icon name={Relation.iconName(item.relation)} />
 								<div className="filterContent">
 									<Label className="relationName" text={item.relation.name} />
 									{Relation.isFilterActive(item) ? (

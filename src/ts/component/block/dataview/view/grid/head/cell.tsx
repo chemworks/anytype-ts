@@ -131,7 +131,7 @@ const HeadCell = forwardRef<{}, Props>((props, ref) => {
 					{...attributes}
 					{...listeners}
 				>
-					<Icon name={Relation.registryName(relation.relationKey, relation.format)} />
+					<Icon name={Relation.iconName(relation)} />
 					<ObjectName object={relation} />
 				</div>
 
