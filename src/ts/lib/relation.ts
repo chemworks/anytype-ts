@@ -79,6 +79,7 @@ class Relation {
 
 		return String(text || '').
 			replace(/rel\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)/g, (m: string, rel: string, key: string) => `rel(${quote(rel)}, ${quote(key)})`).
+			replace(/\bchildren\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\)/g, (m: string, rel: string, key: string) => `children(${quote(rel)}, ${quote(key)})`).
 			replace(/prop\(\s*"([^"]*)"\s*\)/g, (m: string, key: string) => `prop(${quote(key)})`);
 	};
 

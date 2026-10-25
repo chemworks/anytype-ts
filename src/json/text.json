@@ -2390,7 +2390,7 @@
 	"menuDataviewRelationEditFormulaPlaceholder": "sum(rel(\"Tasks\", \"Hours\")) * prop(\"Rate\")",
 	"menuDataviewRelationEditFormulaResult": "Result: %s",
 	"menuDataviewRelationEditFormulaChecking": "Checking formula…",
-	"menuDataviewRelationEditFormulaHint": "prop(\"Name\") reads a property of this object, rel(\"Relation\", \"Name\") reads it from the linked objects",
+	"menuDataviewRelationEditFormulaHint": "prop(\"Name\") reads a property of this object, rel(\"Relation\", \"Name\") reads it from the linked objects, children(\"Relation\", \"Name\") from the objects that link here",
 	"menuDataviewRelationEditRelationName": "Property name",
 	"menuDataviewRelationEditRelationType": "Property Type",
 	"menuDataviewRelationEditSelectRelationType": "Select Property Type",
