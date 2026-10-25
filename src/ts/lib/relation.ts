@@ -57,6 +57,23 @@ class Relation {
 		});
 	};
 
+	/**
+	 * Returns why a formula property could not be computed for an object, as the middleware reports it.
+	 * @param {any} record - The object.
+	 * @param {string} relationKey - The formula property key.
+	 * @returns {string} The reason, or an empty string when the value was computed.
+	 */
+	public formulaError (record: any, relationKey: string): string {
+		for (const it of this.getArrayValue(record?.formulaErrors)) {
+			const [ key, ...reason ] = String(it).split('\t');
+
+			if (key == relationKey) {
+				return reason.join('\t');
+			};
+		};
+		return '';
+	};
+
 	private formulaRewrite (text: string, map: (name: string) => string): string {
 		const quote = (v: string) => JSON.stringify(map(v));
 
