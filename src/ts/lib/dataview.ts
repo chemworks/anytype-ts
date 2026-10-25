@@ -1408,9 +1408,10 @@ class Dataview {
 	 * Matches the header row of pasted rows to properties. The Name column fills the object name, and the
 	 * Código (or Code, ID) column is the key that finds objects to update instead of creating them.
 	 * @param {string[]} header - The first pasted row.
-	 * @returns {any} The property of each column (null when unknown), the key column index and the unknown names.
+	 * @returns {any} The property of each column (null when unknown), the key column index, whether the key
+	 * column has no property yet (it is created on import) and the unknown names.
 	 */
-	pastePlan (header: string[]): { relations: any[]; keyIndex: number; unknown: string[] } {
+	pastePlan (header: string[]): { relations: any[]; keyIndex: number; missingKey: boolean; unknown: string[] } {
 		const normalize = (v: string) => String(v || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 		const relations = S.Record.getRelations();
 		const nameKeys = [ 'nombre', 'name', normalize(S.Record.getRelationByKey('name')?.name) ];
@@ -1430,17 +1431,17 @@ class Dataview {
 				relation = relations.find(it => !it.isReadonlyValue && !skip.includes(it.relationFormat) && (normalize(it.name) == n));
 			};
 
-			if (keyNames.includes(n) && relation && (keyIndex < 0)) {
+			if (keyNames.includes(n) && (keyIndex < 0)) {
 				keyIndex = i;
 			};
 
-			if (!relation) {
+			if (!relation && (keyIndex != i)) {
 				unknown.push(name);
 			};
 			return relation;
 		});
 
-		return { relations: columns, keyIndex, unknown };
+		return { relations: columns, keyIndex, missingKey: (keyIndex >= 0) && !columns[keyIndex], unknown };
 	};
 
 	/**
@@ -1505,14 +1506,17 @@ class Dataview {
 	/**
 	 * Imports pasted rows into a dataview: rows whose key matches an object of the type update it, the rest
 	 * create objects with the view defaults (for example the project the view is filtered by).
-	 * Empty cells leave the value as it is.
+	 * Keys are matched only among objects that link to the same objects as the view defaults, so the same
+	 * code can be used in two projects. A key column without a property creates it as text, adds it to the
+	 * type and shows it in the view. Empty cells leave the value as it is.
 	 * @param {string[][]} rows - The pasted rows, the first one with property names.
-	 * @param {any} param - typeId, templateId, the details of new objects, and the collection to add them to.
+	 * @param {any} param - typeId, templateId, the details of new objects, the collection to add them to,
+	 * and the dataview (rootId, blockId, view) that shows a created key property.
 	 * @param {function} callBack - Gets the number of updated and created objects.
 	 */
-	async pasteImport (rows: string[][], param: { typeId: string; templateId?: string; details?: any; collectionId?: string }, callBack?: (updated: number, created: number) => void) {
+	async pasteImport (rows: string[][], param: { typeId: string; templateId?: string; details?: any; collectionId?: string; rootId?: string; blockId?: string; view?: I.View }, callBack?: (updated: number, created: number) => void) {
 		const [ header, ...data ] = rows;
-		const { relations, keyIndex } = this.pastePlan(header || []);
+		const { relations, keyIndex, missingKey } = this.pastePlan(header || []);
 		const type = S.Record.getTypeById(param.typeId);
 		const space = S.Common.space;
 		const call = (fn: any, ...args: any[]): Promise<any> => new Promise(resolve => fn(...args, resolve));
@@ -1545,13 +1549,43 @@ class Dataview {
 			return ids;
 		};
 
+		if (missingKey) {
+			const message = await call(C.ObjectCreateRelation, { name: header[keyIndex], relationFormat: I.RelationType.ShortText }, space);
+			if (message.error?.code || !message.details) {
+				callBack?.(0, 0);
+				return;
+			};
+
+			const relation = message.details;
+			const recommended = U.Common.arrayUnique(Relation.getArrayValue(type.recommendedRelations).concat(relation.id));
+
+			S.Detail.update(U.Subscription.spaceSubId(J.Constant.subId.relation), { id: relation.id, details: relation }, false);
+			await call(C.ObjectListSetDetails, [ type.id ], [ { key: 'recommendedRelations', value: recommended } ]);
+
+			if (param.rootId && param.blockId && param.view) {
+				this.relationAdd(param.rootId, param.blockId, relation.relationKey, -1, param.view);
+			};
+
+			relations[keyIndex] = S.Record.getRelationById(relation.id) || { ...relation, format: I.RelationType.ShortText };
+		};
+
+		// the projects (or other objects) the view puts new rows in
+		const scope: I.Filter[] = [];
+		for (const key in (param.details || {})) {
+			const value = Relation.getArrayValue(param.details[key]);
+			if ((S.Record.getRelationByKey(key)?.format == I.RelationType.Object) && value.length) {
+				scope.push({ relationKey: key, condition: I.FilterCondition.In, value } as I.Filter);
+			};
+		};
+
 		const existing: Map<string, string> = new Map();
-		if (keyIndex >= 0) {
+		if ((keyIndex >= 0) && !missingKey) {
 			const keyRelation = relations[keyIndex];
 			const codes = data.map(it => it[keyIndex]).filter(it => it);
 			const message = await call(C.ObjectSearch, space, [
 				{ relationKey: 'type', condition: I.FilterCondition.Equal, value: type.id },
 				{ relationKey: keyRelation.relationKey, condition: I.FilterCondition.In, value: codes },
+				...scope,
 			], [], [ 'id', keyRelation.relationKey ], '', 0, 0);
 
 			for (const record of (message.records || [])) {

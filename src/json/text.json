@@ -2449,6 +2449,7 @@
 	"menuDataviewPastePlaceholder": "Código\tName\tHours\nT-01\tDesign\t4",
 	"menuDataviewPasteRows": "%s rows · columns: %s",
 	"menuDataviewPasteKey": "Rows with an existing %s are updated, the rest are created",
+	"menuDataviewPasteKeyNew": "%s is a new property: it is created and every row is created",
 	"menuDataviewPasteNoKey": "No Código column: every row creates a new object",
 	"menuDataviewPasteUnknown": "Ignored columns: %s",
 	"menuDataviewPasteImport": "Import",

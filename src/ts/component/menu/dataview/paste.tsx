@@ -6,7 +6,7 @@ const MenuDataviewPaste = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 
 	const { param, position, close } = props;
 	const { data } = param;
-	const { typeId, templateId, getDetails, isCollection, targetId } = data;
+	const { rootId, blockId, getView, typeId, templateId, getDetails, isCollection, targetId } = data;
 	const valueRef = useRef('');
 	const [ rows, setRows ] = useState<string[][]>([]);
 	const [ isLoading, setIsLoading ] = useState(false);
@@ -33,6 +33,9 @@ const MenuDataviewPaste = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			templateId,
 			details: getDetails?.() || {},
 			collectionId: isCollection ? targetId : '',
+			rootId,
+			blockId,
+			view: getView?.(),
 		}, (updated: number, created: number) => {
 			setIsLoading(false);
 			setResult(U.String.sprintf(translate('menuDataviewPasteResult'), updated, created));
@@ -47,7 +50,11 @@ const MenuDataviewPaste = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 		const known = plan.relations.filter(it => it).map(it => it.name);
 
 		lines.push(U.String.sprintf(translate('menuDataviewPasteRows'), rows.length - 1, known.join(', ')));
-		lines.push((plan.keyIndex >= 0) ? U.String.sprintf(translate('menuDataviewPasteKey'), rows[0][plan.keyIndex]) : translate('menuDataviewPasteNoKey'));
+		if (plan.missingKey) {
+			lines.push(U.String.sprintf(translate('menuDataviewPasteKeyNew'), rows[0][plan.keyIndex]));
+		} else {
+			lines.push((plan.keyIndex >= 0) ? U.String.sprintf(translate('menuDataviewPasteKey'), rows[0][plan.keyIndex]) : translate('menuDataviewPasteNoKey'));
+		};
 
 		if (plan.unknown.length) {
 			lines.push(U.String.sprintf(translate('menuDataviewPasteUnknown'), plan.unknown.join(', ')));

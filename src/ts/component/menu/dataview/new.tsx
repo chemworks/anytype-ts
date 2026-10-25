@@ -8,7 +8,7 @@ const MenuNew = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 	const { data, className, classNameWrap } = param;
 	const { 
 		subId, typeId, templateId, route, hasSources, getView, onTypeChange, onSetDefault, onSelect, isCollection, withTypeSelect, 
-		isAllowedObject, targetId, getDetails,
+		isAllowedObject, targetId, getDetails, rootId, blockId,
 	} = data;
 	const n = useRef(-1);
 	const [ template, setTemplate ] = useState(null);
@@ -122,6 +122,8 @@ const MenuNew = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			case 'paste': {
 				menuId = 'dataviewPaste';
 				menuParam.data = Object.assign(menuParam.data, {
+					rootId,
+					blockId,
 					typeId: data.typeId,
 					templateId: data.templateId,
 					getDetails,
