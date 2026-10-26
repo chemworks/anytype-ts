@@ -56,7 +56,7 @@ const RelationFormula = forwardRef<RelationFormulaRefProps, Props>(({ relation, 
 					className="formula"
 					value={value}
 					placeholder={translate('menuDataviewRelationEditFormulaPlaceholder')}
-					rows={3}
+					rows={Math.min(8, Math.max(3, Math.ceil(String(value || '').length / 24)))}
 					readonly={readonly}
 					onChange={onChangeHandler}
 				/>

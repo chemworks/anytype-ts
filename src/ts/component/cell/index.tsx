@@ -534,7 +534,8 @@ const Cell = forwardRef<I.CellRef, Props>((props, ref) => {
 		};
 
 		if (t && cell) {
-			Preview.tooltipShow({ ...tooltipParam, text: t, element: cell });
+			// an error explains its own cell, so it opens below and leaves the row above readable
+			Preview.tooltipShow({ ...tooltipParam, text: t, element: cell, typeY: (error ? I.MenuDirection.Bottom : tooltipParam.typeY) });
 		};
 	};
 	
