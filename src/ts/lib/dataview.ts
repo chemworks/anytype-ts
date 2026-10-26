@@ -1448,7 +1448,7 @@ class Dataview {
 	 * Converts a pasted cell to the value of a property. Option names are kept as names and resolved on import.
 	 * @param {any} relation - The property.
 	 * @param {string} text - The cell.
-	 * @returns {any} The value, or null when the cell is empty or does not fit the property.
+	 * @returns {any} The value, null when the cell is empty, or undefined when it does not fit the property.
 	 */
 	pasteValue (relation: any, text: string): any {
 		text = String(text || '').trim();
@@ -1458,7 +1458,8 @@ class Dataview {
 
 		switch (relation.format) {
 			case I.RelationType.Number: {
-				let v = text.replace(/\s/g, '');
+				// spaces (also non-breaking ones), currency and percent signs; (12) is negative as in accounting
+				let v = text.replace(/[\s\u00a0$€£%]/g, '').replace(/^\((.*)\)$/, '-$1');
 
 				// 1.234,5 is a decimal comma with thousands dots, 1,234.5 the other way round
 				if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(v) || /^-?\d+,\d+$/.test(v)) {
@@ -1468,7 +1469,7 @@ class Dataview {
 				};
 
 				const n = Number(v);
-				return isNaN(n) ? null : n;
+				return (!v || isNaN(n)) ? undefined : n;
 			};
 
 			case I.RelationType.Checkbox: {
@@ -1476,17 +1477,7 @@ class Dataview {
 			};
 
 			case I.RelationType.Date: {
-				let m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-				if (m) {
-					return U.Date.timestamp(Number(m[1]), Number(m[2]), Number(m[3]));
-				};
-
-				m = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
-				if (m) {
-					const y = Number(m[3]);
-					return U.Date.timestamp((y < 100) ? (2000 + y) : y, Number(m[2]), Number(m[1]));
-				};
-				return null;
+				return this.pasteDate(text);
 			};
 
 			case I.RelationType.Select: {
@@ -1501,6 +1492,92 @@ class Dataview {
 				return text;
 			};
 		};
+	};
+
+	/**
+	 * Reads a pasted date: 2026-10-26, 26/10/2026, 26.10.26, 26-oct-2026 or 26 de octubre de 2026, with an
+	 * optional time after it. Day comes first unless it cannot (10/26/2026 is read as October 26).
+	 * @param {string} text - The cell.
+	 * @returns {number} The timestamp, or undefined when it is not a date.
+	 */
+	pasteDate (text: string): number {
+		const months = [ 'ene|jan', 'feb', 'mar', 'abr|apr', 'may', 'jun', 'jul', 'ago|aug', 'sep|set', 'oct', 'nov', 'dic|dec' ];
+		const year = (v: string) => (Number(v) < 100) ? (2000 + Number(v)) : Number(v);
+		const time = (rest: string) => {
+			const t = rest.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+			return t ? [ Number(t[1]), Number(t[2]), Number(t[3] || 0) ] : [ 0, 0, 0 ];
+		};
+		const make = (y: number, m: number, d: number, rest: string) => {
+			if ((m < 1) || (m > 12) || (d < 1) || (d > 31)) {
+				return undefined;
+			};
+			return U.Date.timestamp(y, m, d, ...time(rest));
+		};
+
+		let m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(.*)$/);
+		if (m) {
+			return make(Number(m[1]), Number(m[2]), Number(m[3]), m[4]);
+		};
+
+		m = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(.*)$/);
+		if (m) {
+			let [ d, mo ] = [ Number(m[1]), Number(m[2]) ];
+			if ((mo > 12) && (d <= 12)) {
+				[ d, mo ] = [ mo, d ];
+			};
+			return make(year(m[3]), mo, d, m[4]);
+		};
+
+		m = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/^(\d{1,2})[\s./-]*(?:de\s+)?([a-z]{3})[a-z]*\.?[\s./-]*(?:de\s+)?(\d{2,4})(.*)$/);
+		if (m) {
+			const mo = months.findIndex(it => it.split('|').includes(m[2])) + 1;
+			return make(year(m[3]), mo, Number(m[1]), m[4]);
+		};
+
+		return undefined;
+	};
+
+	/**
+	 * Normalizes a pasted code so that " t-01" and "T-01" find the same object.
+	 * @param {string} text - The code.
+	 * @returns {string} The code to compare.
+	 */
+	pasteKey (text: string): string {
+		return String(text || '').trim().replace(/\s+/g, ' ').toUpperCase();
+	};
+
+	/**
+	 * Finds the objects that pasted rows would update: objects of the type, linked to the same objects as the
+	 * view defaults (so the same code can be used in two projects), whose key property matches a row's code.
+	 * @param {any} keyRelation - The key property.
+	 * @param {string} typeId - The type of the objects.
+	 * @param {any} details - The view defaults.
+	 * @returns {Promise<Map<string, string>>} The object id of each normalized code.
+	 */
+	async pasteMatch (keyRelation: any, typeId: string, details: any): Promise<Map<string, string>> {
+		const existing: Map<string, string> = new Map();
+		if (!keyRelation || !typeId) {
+			return existing;
+		};
+
+		const filters: I.Filter[] = [
+			{ relationKey: 'type', condition: I.FilterCondition.Equal, value: typeId } as I.Filter,
+			{ relationKey: keyRelation.relationKey, condition: I.FilterCondition.NotEmpty, value: null } as I.Filter,
+		];
+
+		// the projects (or other objects) the view puts new rows in
+		for (const key in (details || {})) {
+			const value = Relation.getArrayValue(details[key]);
+			if ((S.Record.getRelationByKey(key)?.format == I.RelationType.Object) && value.length) {
+				filters.push({ relationKey: key, condition: I.FilterCondition.In, value } as I.Filter);
+			};
+		};
+
+		const message: any = await new Promise(resolve => C.ObjectSearch(S.Common.space, filters, [], [ 'id', keyRelation.relationKey ], '', 0, 0, resolve));
+		for (const record of (message.records || [])) {
+			existing.set(this.pasteKey(record[keyRelation.relationKey]), record.id);
+		};
+		return existing;
 	};
 
 	/**
@@ -1569,29 +1646,7 @@ class Dataview {
 			relations[keyIndex] = S.Record.getRelationById(relation.id) || { ...relation, format: I.RelationType.ShortText };
 		};
 
-		// the projects (or other objects) the view puts new rows in
-		const scope: I.Filter[] = [];
-		for (const key in (param.details || {})) {
-			const value = Relation.getArrayValue(param.details[key]);
-			if ((S.Record.getRelationByKey(key)?.format == I.RelationType.Object) && value.length) {
-				scope.push({ relationKey: key, condition: I.FilterCondition.In, value } as I.Filter);
-			};
-		};
-
-		const existing: Map<string, string> = new Map();
-		if ((keyIndex >= 0) && !missingKey) {
-			const keyRelation = relations[keyIndex];
-			const codes = data.map(it => it[keyIndex]).filter(it => it);
-			const message = await call(C.ObjectSearch, space, [
-				{ relationKey: 'type', condition: I.FilterCondition.Equal, value: type.id },
-				{ relationKey: keyRelation.relationKey, condition: I.FilterCondition.In, value: codes },
-				...scope,
-			], [], [ 'id', keyRelation.relationKey ], '', 0, 0);
-
-			for (const record of (message.records || [])) {
-				existing.set(String(record[keyRelation.relationKey]), record.id);
-			};
-		};
+		const existing = ((keyIndex >= 0) && !missingKey) ? await this.pasteMatch(relations[keyIndex], type.id, param.details) : new Map<string, string>();
 
 		let updated = 0;
 		const createdIds: string[] = [];
@@ -1616,8 +1671,12 @@ class Dataview {
 				details[relation.relationKey] = value;
 			};
 
-			const id = (keyIndex >= 0) ? existing.get(row[keyIndex]) : '';
+			const code = (keyIndex >= 0) ? this.pasteKey(row[keyIndex]) : '';
+			const id = code ? existing.get(code) : '';
 			if (id) {
+				// the code stays as it was written first, " t-01" only finds "T-01"
+				delete details[relations[keyIndex].relationKey];
+
 				await call(C.ObjectListSetDetails, [ id ], Object.keys(details).map(key => ({ key, value: details[key] })));
 				updated++;
 				continue;
@@ -1627,8 +1686,8 @@ class Dataview {
 			if (message.objectId) {
 				createdIds.push(message.objectId);
 
-				if (keyIndex >= 0) {
-					existing.set(row[keyIndex], message.objectId);
+				if (code) {
+					existing.set(code, message.objectId);
 				};
 			};
 		};

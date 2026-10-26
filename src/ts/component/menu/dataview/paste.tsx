@@ -11,10 +11,48 @@ const MenuDataviewPaste = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 	const [ rows, setRows ] = useState<string[][]>([]);
 	const [ isLoading, setIsLoading ] = useState(false);
 	const [ result, setResult ] = useState('');
+	const [ match, setMatch ] = useState<{ update: number; create: number }>(null);
+	const requestRef = useRef(0);
 
 	useEffect(() => {
 		position();
 	});
+
+	// how many rows update an object and how many create one, refreshed when the pasted text changes
+	useEffect(() => {
+		const plan = (rows.length > 1) ? Dataview.pastePlan(rows[0]) : null;
+		const request = ++requestRef.current;
+
+		setMatch(null);
+		if (!plan || (plan.keyIndex < 0)) {
+			return;
+		};
+
+		const codes = rows.slice(1).map(it => Dataview.pasteKey(it[plan.keyIndex]));
+		const count = (existing: Map<string, string>) => {
+			const seen = new Set<string>();
+
+			let update = 0;
+			for (const code of codes) {
+				if (code && (existing.has(code) || seen.has(code))) {
+					update++;
+				};
+				seen.add(code);
+			};
+			return { update, create: codes.length - update };
+		};
+
+		if (plan.missingKey) {
+			setMatch(count(new Map()));
+			return;
+		};
+
+		Dataview.pasteMatch(plan.relations[plan.keyIndex], typeId, getDetails?.() || {}).then(existing => {
+			if (request == requestRef.current) {
+				setMatch(count(existing));
+			};
+		});
+	}, [ rows ]);
 
 	const onChange = (e: any, v: string) => {
 		valueRef.current = v;
@@ -54,6 +92,35 @@ const MenuDataviewPaste = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			lines.push(U.String.sprintf(translate('menuDataviewPasteKeyNew'), rows[0][plan.keyIndex]));
 		} else {
 			lines.push((plan.keyIndex >= 0) ? U.String.sprintf(translate('menuDataviewPasteKey'), rows[0][plan.keyIndex]) : translate('menuDataviewPasteNoKey'));
+		};
+
+		if (match) {
+			lines.push(U.String.sprintf(translate('menuDataviewPasteMatch'), match.update, match.create));
+		};
+
+		if (plan.keyIndex >= 0) {
+			const codes = rows.slice(1).map(it => Dataview.pasteKey(it[plan.keyIndex])).filter(it => it);
+			const repeated = U.Common.arrayUnique(codes.filter((it, i) => codes.indexOf(it) != i));
+
+			if (repeated.length) {
+				lines.push(U.String.sprintf(translate('menuDataviewPasteRepeated'), repeated.join(', ')));
+			};
+		};
+
+		const invalid: string[] = [];
+		plan.relations.forEach((relation, i) => {
+			if (!relation) {
+				return;
+			};
+
+			const n = rows.slice(1).filter(it => Dataview.pasteValue(relation, it[i]) === undefined).length;
+			if (n) {
+				invalid.push(`${relation.name} (${n})`);
+			};
+		});
+
+		if (invalid.length) {
+			lines.push(U.String.sprintf(translate('menuDataviewPasteInvalid'), invalid.join(', ')));
 		};
 
 		if (plan.unknown.length) {
