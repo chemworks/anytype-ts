@@ -378,7 +378,7 @@ const MenuSort = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 				<div className="sides">
 					<div className="side left">
 						<div className="chip relation" onClick={e => onSortNameClick(e, item)}>
-							<Icon name={Relation.registryName(relation.relationKey, relation.format)} />
+							<Icon name={Relation.iconName(relation)} />
 							<div className="name">{relation.name}</div>
 						</div>
 						<div className="chip type" onClick={e => onTypeChange(e, item)}>

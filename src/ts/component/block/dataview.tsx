@@ -725,6 +725,7 @@ const BlockDataview = forwardRef<I.BlockRef, Props>((props, ref) => {
 				controlsRef.current?.toggleHoverArea(false);
 			},
 			data: {
+				rootId,
 				blockId: block.id,
 				subId: getSubId(),
 				targetId: getObjectId(),
@@ -736,6 +737,7 @@ const BlockDataview = forwardRef<I.BlockRef, Props>((props, ref) => {
 				route,
 				isAllowedObject: isAllowedObject(),
 				isCollection,
+				getDetails: () => getDetails(),
 				onTypeChange: (id) => {
 					if (id != getTypeId()) {
 						const newType = S.Record.getTypeById(id);

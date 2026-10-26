@@ -263,7 +263,7 @@ const MenuRelationList = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 			>
 				{!isReadonly ? <Icon name="common/dnd" /> : ''}
 				<span className="clickable" onClick={e => onClick(e, item)}>
-					<Icon name={Relation.registryName(item.relation.relationKey, item.relation.format)} />
+					<Icon name={Relation.iconName(item.relation)} />
 					<div className="name">{item.relation.name}</div>
 				</span>
 				{canHide ? (

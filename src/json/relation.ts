@@ -26,6 +26,7 @@ export default {
 		'timestamp',
 		'resolvedLayout',
 		'discussionId',
+		'formulaErrors',
 	],
 
 	sidebar: [
@@ -72,6 +73,9 @@ export default {
 		'relationDefaultValue',
 		'relationFormatObjectTypes',
 		'relationFormatIncludeTime',
+		'relationFormula',
+		'relationFormulaResultFormat',
+		'relationFormulaError',
 		'sourceObject',
 		'restrictions',
 	],

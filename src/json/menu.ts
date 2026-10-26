@@ -67,7 +67,7 @@ export default {
 	widgetAdd: [ 'typeSuggest', 'select' ],
 	dataviewTemplate: [ 'previewObject' ],
 	table: [ 'select2', 'blockColor', 'blockBackground' ],
-	dataviewNew: [ 'searchObject', 'typeSuggest', 'dataviewTemplateList' ],
+	dataviewNew: [ 'searchObject', 'typeSuggest', 'dataviewTemplateList', 'dataviewPaste' ],
 	graphSettings: [ 'select' ],
 	syncStatus: [ 'syncStatusInfo', 'select' ],
 	help: [ 'select' ],

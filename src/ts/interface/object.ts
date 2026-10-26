@@ -48,6 +48,7 @@ export enum RelationType {
 	MultiSelect	 = 11,
 	Object		 = 100,
 	Relations	 = 101,
+	Formula		 = 200,
 };
 
 export enum RelationScope {

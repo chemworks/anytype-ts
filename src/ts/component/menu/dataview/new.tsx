@@ -8,7 +8,7 @@ const MenuNew = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 	const { data, className, classNameWrap } = param;
 	const { 
 		subId, typeId, templateId, route, hasSources, getView, onTypeChange, onSetDefault, onSelect, isCollection, withTypeSelect, 
-		isAllowedObject, targetId,
+		isAllowedObject, targetId, getDetails, rootId, blockId,
 	} = data;
 	const n = useRef(-1);
 	const [ template, setTemplate ] = useState(null);
@@ -42,6 +42,10 @@ const MenuNew = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 
 		if (isAllowedObject && isCollection) {
 			itemsAdd.push({ id: 'existing', iconParam: { name: 'menu/action/existing' }, name: translate('menuDataviewNewExistingObject'), arrow: true });
+		};
+
+		if (isAllowedObject) {
+			itemsAdd.push({ id: 'paste', iconParam: { name: 'menu/action/copy' }, name: translate('menuDataviewNewPaste'), arrow: true });
 		};
 
 		if (withTypeSelect) {
@@ -111,6 +115,20 @@ const MenuNew = forwardRef<I.MenuRef, I.Menu>((props, ref) => {
 						Action.addToCollection(targetId, [ el.id ]);
 					},
 					skipIds: [ ...S.Record.getRecordIds(subId, ''), targetId ],
+				});
+				break;
+			};
+
+			case 'paste': {
+				menuId = 'dataviewPaste';
+				menuParam.data = Object.assign(menuParam.data, {
+					rootId,
+					blockId,
+					typeId: data.typeId,
+					templateId: data.templateId,
+					getDetails,
+					isCollection,
+					targetId,
 				});
 				break;
 			};

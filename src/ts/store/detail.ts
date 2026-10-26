@@ -490,6 +490,16 @@ class DetailStore {
 		object.sourceObject = Relation.getStringValue(object.sourceObject);
 		object.includeTime = Boolean(object.relationFormatIncludeTime) || false;
 
+		// A formula is shown, sorted and filtered as the format of its value, and is never edited by hand
+		object.isFormula = (object.relationFormat == I.RelationType.Formula);
+		if (object.isFormula) {
+			object.relationFormula = Relation.getStringValue(object.relationFormula);
+			object.relationFormulaError = Relation.getStringValue(object.relationFormulaError);
+			object.relationFormulaResultFormat = Number(object.relationFormulaResultFormat) || I.RelationType.ShortText;
+			object.format = object.relationFormulaResultFormat;
+			object.relationReadonlyValue = true;
+		};
+
 		if (object.isDeleted) {
 			object.name = translate('commonDeletedRelation');
 		};

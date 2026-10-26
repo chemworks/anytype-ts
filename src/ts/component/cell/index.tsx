@@ -526,14 +526,16 @@ const Cell = forwardRef<I.CellRef, Props>((props, ref) => {
 	const onMouseEnterHandler = (e: any) => {
 		const cell = U.Dom.get(Relation.cellId(idPrefix, relation.relationKey, record.id));
 		const { text = '', caption = '' } = tooltipParam;
-		const t = Preview.tooltipCaption(text, caption);
+		const error = relation.isFormula ? Relation.formulaError(record, relation.relationKey) : '';
+		const t = error || Preview.tooltipCaption(text, caption);
 
 		if (onMouseEnter) {
 			onMouseEnter(e);
 		};
 
 		if (t && cell) {
-			Preview.tooltipShow({ ...tooltipParam, text: t, element: cell });
+			// an error explains its own cell, so it opens below and leaves the row above readable
+			Preview.tooltipShow({ ...tooltipParam, text: t, element: cell, typeY: (error ? I.MenuDirection.Bottom : tooltipParam.typeY) });
 		};
 	};
 	
@@ -583,6 +585,7 @@ const Cell = forwardRef<I.CellRef, Props>((props, ref) => {
 	const id = Relation.cellId(idPrefix, relation.relationKey, record.id);
 	const canEdit = canCellEdit(relation, record);
 	const placeholder = getPlaceholder(relation, record);
+	const formulaError = relation.isFormula ? Relation.formulaError(record, relation.relationKey) : '';
 	const cn = [ 
 		'cellContent', 
 		`c-${relation.relationKey}`,
@@ -640,9 +643,9 @@ const Cell = forwardRef<I.CellRef, Props>((props, ref) => {
 
 	useImperativeHandle(ref, () => ({
 		onClick: onClickHandler,
-		isEditing: () => childRef.current.isEditing?.(),
+		isEditing: () => childRef.current?.isEditing?.(),
 		canEdit: () => canCellEdit(relation, record),
-		onBlur: () => childRef.current.onBlur?.(),
+		onBlur: () => childRef.current?.onBlur?.(),
 		forceUpdate: () => setDummy(dummy + 1),
 	}));
 
@@ -655,7 +658,11 @@ const Cell = forwardRef<I.CellRef, Props>((props, ref) => {
 			onMouseEnter={onMouseEnterHandler} 
 			onMouseLeave={onMouseLeaveHandler}
 		>
-			<CellComponent ref={childRef} key={id} {...childProps} />
+			{formulaError ? (
+				<div className="formulaError">#ERROR</div>
+			) : (
+				<CellComponent ref={childRef} key={id} {...childProps} />
+			)}
 		</div> 
 	);
 

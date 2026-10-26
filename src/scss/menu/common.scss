@@ -93,6 +93,9 @@
 		}
 		
 		.inputWrap { padding: 0px 16px 8px 16px; }
+		.textarea.formula { padding: 6px 8px; background: var(--color-shape-tertiary); border-radius: 6px; }
+		.formulaStatus { @include text-small; padding: 0px 16px 8px 16px; color: var(--color-text-secondary); }
+		.formulaStatus.isError { color: var(--color-red); }
 	
 		.title { @include text-small;  margin: 0px; padding: 7px 16px; font-weight: 400; color: var(--color-control-active); }
 
